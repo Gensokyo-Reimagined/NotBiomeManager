@@ -1,0 +1,8 @@
+name: NotBiomeManager
+version: '${version}'
+main: net.gensokyoreimagined.notbiomemanager.NotBiomeManager
+api-version: '1.21'
+authors: []
+depend: []
+softdepend: []
+website: https://gensokyoreimagined.net
