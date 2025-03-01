@@ -160,6 +160,8 @@ public class NotBiomeManager extends JavaPlugin {
 
         compute(specialEffectsNode.node("Grass_Modifier"), x -> specialEffectsBuilder.grassColorModifier(BiomeSpecialEffects.GrassColorModifier.valueOf(x.getString())));
 
+        compute(specialEffectsNode.node("Foliage_Color"), x -> specialEffectsBuilder.foliageColorOverride(fromRgbString(x.getString()).asRGB()));
+
         var ambientParticleNode = specialEffectsNode.node("Particle");
         compute(ambientParticleNode.node("Type"), x -> {
             RegistryAccess access = ((CraftServer) Bukkit.getServer()).getServer().registryAccess();
