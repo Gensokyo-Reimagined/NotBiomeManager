@@ -1,7 +1,21 @@
 package net.gensokyoreimagined.notbiomemanager;
 
+import com.google.common.primitives.Doubles;
+import com.google.common.primitives.Floats;
+import com.google.common.primitives.Ints;
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.StringReader;
+import com.mojang.brigadier.arguments.BoolArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import it.unimi.dsi.fastutil.Pair;
 import net.minecraft.commands.arguments.ParticleArgument;
 import net.minecraft.core.*;
@@ -17,6 +31,7 @@ import org.apache.commons.io.FileUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.NamespacedKey;
+import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -35,6 +50,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
@@ -45,6 +61,16 @@ public class NotBiomeManager extends JavaPlugin {
     private CommentedConfigurationNode configNode;
     private ConfigurationLoader<CommentedConfigurationNode> loader;
 
+    private static Field specialEffectsField;
+
+    static {
+        try{
+            specialEffectsField = Biome.class.getDeclaredField("specialEffects");
+            specialEffectsField.setAccessible(true);
+        }catch(NoSuchFieldException e){
+            throw new RuntimeException(e);
+        }
+    }
 
 
     private CommentedConfigurationNode defaultConfig(ConfigurationLoader<@NotNull CommentedConfigurationNode> loader) {
@@ -108,6 +134,152 @@ public class NotBiomeManager extends JavaPlugin {
 
     }
 
+    @Override
+    public void onEnable(){
+        var manager = this.getLifecycleManager();
+        manager.registerEventHandler(
+                LifecycleEvents.COMMANDS,
+                (event) -> {
+                    var commands = event.registrar();
+                    SimpleCommandExceptionType nonPlayerException = new SimpleCommandExceptionType(() -> {
+                        return "This command can only be run by a player.";
+                    });
+                    var mainCommand = (
+                            Commands.literal("notbiomemanager")
+                                    .then(
+                                            Commands.literal("reload")
+                                                    .executes(ctx -> {
+                                                        ctx.getSource().getSender().sendMessage("Configuration successfully reloaded!");
+                                                        try{
+                                                            configNode=loader.load();
+                                                            loadConfig(configNode);
+                                                        }catch(ConfigurateException e){
+                                                            throw new RuntimeException(e);
+                                                        }
+
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }).requires(ctx -> actuallyHasPermission(ctx.getSender(),"notbiomemanager.reload"))
+                                    )
+                                    .then(
+                                            Commands.literal("create")
+                                                    .then(Commands.argument("newBiomeId",StringArgumentType.string()).suggests(
+                                                            (a,b) -> b.suggest("namespace+id").buildFuture()
+                                                    )
+                                                    .then(Commands.argument("baseBiome",StringArgumentType.string()).suggests(
+                                                                    (commandContext,suggestionsBuilder) -> {
+                                                                        Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
+                                                                        biomes.keySet().forEach(location -> {
+                                                                            if(location.getNamespace().equalsIgnoreCase("minecraft")){
+                                                                                suggestionsBuilder.suggest(location.getPath());
+                                                                            }
+                                                                        });
+                                                                        return suggestionsBuilder.buildFuture();
+                                                                    }
+                                                            )
+                                                    .executes(ctx -> {
+                                                        String newBiomeId = StringArgumentType.getString(ctx,"newBiomeId");
+                                                        String baseBiome = StringArgumentType.getString(ctx,"baseBiome");
+
+                                                        Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
+                                                        if(biomes.containsKey(ResourceLocation.bySeparator(newBiomeId,'+'))){
+                                                            throw new SimpleCommandExceptionType(() -> "Biome "+newBiomeId+" already exists").create();
+                                                        }
+
+                                                        var defaultConfigNode = YamlConfigurationLoader.builder().build().createNode();
+                                                        try{
+                                                            defaultConfigNode.node("Custom").set(true);
+                                                            defaultConfigNode.node("Key").set(NamespacedKey.fromString(newBiomeId).asString());
+                                                            defaultConfigNode.node("Base").set(baseBiome);
+                                                        }catch(SerializationException e){
+                                                            throw new RuntimeException(e);
+                                                        }
+                                                        var biomeEntry = loadBiomeConfig(defaultConfigNode);
+                                                        registerBiome(biomeEntry.key(),biomeEntry.value());
+                                                        ctx.getSource().getSender().sendMessage("Created new biome with key "+newBiomeId);
+
+
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }).requires(ctx -> actuallyHasPermission(ctx.getSender(),"notbiomemanager.reload"))
+                                    )))
+                                    .then(
+                                            Commands.literal("edit")
+                                                    .then(Commands.argument("biome",StringArgumentType.string()).suggests(
+                                                            (commandContext,suggestionsBuilder) -> {
+                                                                Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
+                                                                biomes.keySet().forEach(location -> {
+                                                                    suggestionsBuilder.suggest(location.getNamespace()+"+"+location.getPath());
+                                                                });
+                                                                return suggestionsBuilder.buildFuture();
+                                                            }
+                                                    )
+                                                    .then(Commands.argument("configKey",StringArgumentType.string()).suggests(
+                                                            (commandContext,suggestionsBuilder) -> {
+                                                                for(String field: allFields){
+                                                                    suggestionsBuilder.suggest(field);
+                                                                }
+                                                                return suggestionsBuilder
+                                                                        .buildFuture();
+                                                            }
+                                                    )
+                                                    .then(Commands.argument("value",StringArgumentType.string())
+                                                    .executes(ctx -> {
+                                                        String biomeId = StringArgumentType.getString(ctx,"biome");
+                                                        String configKey = StringArgumentType.getString(ctx,"configKey");
+                                                        if(!configKey.contains(".")){
+                                                            configKey = configKey+".";
+                                                        }
+                                                        String value = StringArgumentType.getString(ctx,"value").replaceAll("\\+",":");
+                                                        Integer valueInt = Ints.tryParse(value);
+                                                        Float valueFloat = Floats.tryParse(value);
+
+                                                        ResourceLocation location = ResourceLocation.bySeparator(biomeId,'+');
+
+                                                        Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
+                                                        if(!biomes.containsKey(location)){
+                                                            throw new SimpleCommandExceptionType(() -> "Biome "+biomeId+" doesn't exist").create();
+                                                        }
+                                                        var biome = biomes.getValue(location);
+                                                        var builder = SpecialEffectsBuilder.getSpecialEffects(biome);
+
+                                                        var node = YamlConfigurationLoader.builder().build().createNode();
+
+                                                        try{
+                                                            if(valueInt!=null){
+                                                                node.node((Object[])configKey.split("\\.")).set(valueInt);
+                                                            }else if(valueFloat!=null){
+                                                                node.node((Object[])configKey.split("\\.")).set(valueFloat);
+                                                            }else{
+                                                                node.node((Object[])configKey.split("\\.")).set(value);
+                                                            }
+                                                        }catch(SerializationException e){
+                                                            throw new RuntimeException(e);
+                                                        }
+                                                        ctx.getSource().getSender().sendMessage("Set value "+configKey+" to "+value+" for biome "+biomeId);
+
+                                                        applyConfigTo(node,builder);
+
+                                                        try{
+                                                            specialEffectsField.set(biome,builder.build());
+                                                        }catch(IllegalAccessException e){
+                                                            throw new RuntimeException(e);
+                                                        }
+
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }))))
+                                    )
+                                    .build()
+                    );
+                    commands.register(mainCommand);
+                    commands.register(Commands.literal("nbm").redirect(mainCommand).build());
+
+
+
+                }
+        );
+
+    }
+
+
     public static Color fromRgbString(String string){
         var splitted = string.split("-");
         return Color.fromRGB(Integer.parseInt(splitted[0]),Integer.parseInt(splitted[1]),Integer.parseInt(splitted[2]));
@@ -146,24 +318,43 @@ public class NotBiomeManager extends JavaPlugin {
         biomeBuilder.generationSettings(base.getGenerationSettings());
 
         var specialEffectsBuilder = SpecialEffectsBuilder.getSpecialEffects(base);
-        var specialEffectsNode = node.node("Special_Effects");
+
+        applyConfigTo(node.node("Special_Effects"),specialEffectsBuilder);
+
+        System.out.println("THE SPECIAL EFFECTS BUILDER IS "+specialEffectsBuilder.build());
+
+        biomeBuilder.specialEffects(specialEffectsBuilder.build());
+
+        Biome biome = biomeBuilder.build();
+        System.out.println("biome thing "+biome.getSpecialEffects().getAmbientParticleSettings());
+        return Pair.of(key,biome);
+    }
+
+    private static final String[] allFields = new String[]{"Fog_Color","Water_Color","Water_Fog_Color","Sky_Color","Grass_Modifier","Foliage_Color","Grass_Color",
+            "Particle.Type","Particle.Density",
+            "Cave_Sound.Sound","Cave_Sound.Tick_Delay","Cave_Sound.Search_Distance","Cave_Sound.Sound_Offset",
+            "Random_Sound.Sound","Random_Sound.Tick_Chance",
+            "Music.Sound","Music.Min_Delay","Music.Max_Delay","Music.Override_Previous_Music"
+    };
+
+    void applyConfigTo(ConfigurationNode node, SpecialEffectsBuilder specialEffectsBuilder){
 
 
-        compute(specialEffectsNode.node("Fog_Color"), x -> specialEffectsBuilder.fogColor(fromRgbString(x.getString()).asRGB()));
-        compute(specialEffectsNode.node("Water_Color"), x -> specialEffectsBuilder.waterColor(fromRgbString(x.getString()).asRGB()));
-        compute(specialEffectsNode.node("Water_Fog_Color"), x -> specialEffectsBuilder.waterFogColor(fromRgbString(x.getString()).asRGB()));
-        compute(specialEffectsNode.node("Sky_Color"), x -> specialEffectsBuilder.skyColor(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Fog_Color"),x -> specialEffectsBuilder.fogColor(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Water_Color"),x -> specialEffectsBuilder.waterColor(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Water_Fog_Color"),x -> specialEffectsBuilder.waterFogColor(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Sky_Color"),x -> specialEffectsBuilder.skyColor(fromRgbString(x.getString()).asRGB()));
 //        specialEffectsBuilder.fogColor((fromRgbString(getOrDefault(specialEffectsNode.node("Fog_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
 //        specialEffectsBuilder.waterColor((fromRgbString(getOrDefault(specialEffectsNode.node("Water_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
 //        specialEffectsBuilder.waterFogColor((fromRgbString(getOrDefault(specialEffectsNode.node("Water_Fog_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
 //        specialEffectsBuilder.skyColor((fromRgbString(getOrDefault(specialEffectsNode.node("Sky_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
 
-        compute(specialEffectsNode.node("Grass_Modifier"), x -> specialEffectsBuilder.grassColorModifier(BiomeSpecialEffects.GrassColorModifier.valueOf(x.getString())));
+        compute(node.node("Grass_Modifier"),x -> specialEffectsBuilder.grassColorModifier(BiomeSpecialEffects.GrassColorModifier.valueOf(x.getString())));
 
-        compute(specialEffectsNode.node("Foliage_Color"), x -> specialEffectsBuilder.foliageColorOverride(fromRgbString(x.getString()).asRGB()));
-        compute(specialEffectsNode.node("Grass_Color"), x -> specialEffectsBuilder.grassColorOverride(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Foliage_Color"),x -> specialEffectsBuilder.foliageColorOverride(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Grass_Color"),x -> specialEffectsBuilder.grassColorOverride(fromRgbString(x.getString()).asRGB()));
 
-        var ambientParticleNode = specialEffectsNode.node("Particle");
+        var ambientParticleNode = node.node("Particle");
         compute(ambientParticleNode.node("Type"), x -> {
             RegistryAccess access = ((CraftServer) Bukkit.getServer()).getServer().registryAccess();
             ParticleOptions nmsParticle = null;
@@ -176,20 +367,20 @@ public class NotBiomeManager extends JavaPlugin {
         });
         compute(ambientParticleNode.node("Density"), x -> specialEffectsBuilder.ambientParticleProbability = Optional.of(x.getFloat()));
 
-        var ambientMoodNode = specialEffectsNode.node("Cave_Sound");
+        var ambientMoodNode = node.node("Cave_Sound");
         compute(ambientMoodNode.node("Sound"), x -> specialEffectsBuilder.ambientMoodSoundEvent = Optional.ofNullable(getSoundFromKey(x.getString())));
         compute(ambientMoodNode.node("Tick_Delay"), x -> specialEffectsBuilder.ambientMoodTickDelay = Optional.of(x.getInt()));
         compute(ambientMoodNode.node("Search_Distance"), x -> specialEffectsBuilder.ambientMoodBlockSearchExtent = Optional.of(x.getInt()));
         compute(ambientMoodNode.node("Sound_Offset"), x -> specialEffectsBuilder.ambientMoodSoundPositionOffset = Optional.of(x.getDouble()));
 
 
-        var ambientAdditionsNode = specialEffectsNode.node("Random_Sound");
+        var ambientAdditionsNode = node.node("Random_Sound");
         compute(ambientAdditionsNode.node("Sound"), x -> specialEffectsBuilder.ambientAdditionsSoundEvent = Optional.ofNullable(getSoundFromKey(x.getString())));
         compute(ambientAdditionsNode.node("Tick_Chance"), x -> specialEffectsBuilder.ambientAdditionsTickChance = Optional.of(x.getDouble()));
 
 
 
-        compute(specialEffectsNode.node("Music"), x -> {
+        compute(node.node("Music"),x -> {
             if(x.isList()){
                 throw new RuntimeException("Unsupported list syntax for Music");
             }else{
@@ -199,13 +390,6 @@ public class NotBiomeManager extends JavaPlugin {
                 compute(x.node("Override_Previous_Music"), y -> specialEffectsBuilder.singleBackgroundMusicReplaceCurrentMusic = Optional.of(y.getBoolean()));
             }
         });
-        System.out.println("THE SPECIAL EFFECTS BUILDER IS "+specialEffectsBuilder.build());
-
-        biomeBuilder.specialEffects(specialEffectsBuilder.build());
-
-        Biome biome = biomeBuilder.build();
-        System.out.println("biome thing "+biome.getSpecialEffects().getAmbientParticleSettings());
-        return Pair.of(key,biome);
     }
 
 
@@ -243,5 +427,22 @@ public class NotBiomeManager extends JavaPlugin {
         }catch(NoSuchFieldException|IllegalAccessException e){
             throw new RuntimeException(e);
         }
+    }
+
+
+    public static boolean actuallyHasPermission(CommandSender sender,String permission) {
+        if (sender.isPermissionSet(permission)) {
+            return sender.hasPermission(permission);
+        }
+        int position = permission.length();
+
+        for(int i = permission.split("\\.").length-1;i>0;i--){
+            String wildcardPerm = permission.substring(0,permission.lastIndexOf(".",position)) + ".*";
+            position = permission.lastIndexOf(".",position);
+            if (sender.isPermissionSet(wildcardPerm)) {
+                return sender.hasPermission(wildcardPerm);
+            }
+        }
+        return sender.hasPermission(permission);
     }
 }
