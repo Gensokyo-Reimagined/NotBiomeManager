@@ -139,7 +139,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
                 ambientParticleParticleOptions.isPresent() &&
                 ambientParticleProbability.isPresent()
         ){
-            this.ambientParticle(new AmbientParticleSettings(ambientParticleParticleOptions.get(),ambientParticleProbability.get()));
+            super.ambientParticle(new AmbientParticleSettings(ambientParticleParticleOptions.get(),ambientParticleProbability.get()));
         }
 
         if(
@@ -149,7 +149,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
                 ambientMoodSoundPositionOffset.isPresent()
         ){
             if(ambientMoodSoundEvent.get()!=null){
-                this.ambientMoodSound(new AmbientMoodSettings(ambientMoodSoundEvent.get(),ambientMoodTickDelay.get(),ambientMoodBlockSearchExtent.get(),ambientMoodSoundPositionOffset.get()));
+                super.ambientMoodSound(new AmbientMoodSettings(ambientMoodSoundEvent.get(),ambientMoodTickDelay.get(),ambientMoodBlockSearchExtent.get(),ambientMoodSoundPositionOffset.get()));
             }
         }
 
@@ -157,7 +157,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
                 ambientAdditionsSoundEvent.isPresent() &&
                 ambientAdditionsTickChance.isPresent()
         ){
-            this.ambientAdditionsSound(new AmbientAdditionsSettings(ambientAdditionsSoundEvent.get(),ambientAdditionsTickChance.get()));
+            super.ambientAdditionsSound(new AmbientAdditionsSettings(ambientAdditionsSoundEvent.get(),ambientAdditionsTickChance.get()));
         }
 
         if(
@@ -174,16 +174,16 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
                     singleBackgroundMusicReplaceCurrentMusic.isPresent()
             ){
                 if(singleBackgroundMusicSoundEvent.get()!=null){
-                    this.backgroundMusic(new Music(singleBackgroundMusicSoundEvent.get(),singleBackgroundMusicMinDelay.get(),singleBackgroundMusicMaxDelay.get(),singleBackgroundMusicReplaceCurrentMusic.get()));
+                    super.backgroundMusic(new Music(singleBackgroundMusicSoundEvent.get(),singleBackgroundMusicMinDelay.get(),singleBackgroundMusicMaxDelay.get(),singleBackgroundMusicReplaceCurrentMusic.get()));
                 }else{
-                    this.backgroundMusic((Music)null);
+                    super.backgroundMusic((Music)null);
                 }
             }else if(this.backgroundMusic.isEmpty() || this.backgroundMusic.get().unwrap().size() != 1){
                 //System.out.println("things are "+singleBackgroundMusicSoundEvent+" and "+singleBackgroundMusicMinDelay+" and "+singleBackgroundMusicMaxDelay+" and "+singleBackgroundMusicReplaceCurrentMusic);
                 System.out.println("Base background music has invalid length for single overriding syntax / not enough valid configuration values provided for a single track");
             }else{
                 var original = this.backgroundMusic.get().unwrap().getFirst().data();
-                this.backgroundMusic(new Music(
+                super.backgroundMusic(new Music(
                         singleBackgroundMusicSoundEvent.orElse(original.getEvent()),
                         singleBackgroundMusicMinDelay.orElse(original.getMinDelay()),
                         singleBackgroundMusicMaxDelay.orElse(original.getMaxDelay()),

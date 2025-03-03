@@ -161,6 +161,7 @@ public class NotBiomeManager extends JavaPlugin {
         compute(specialEffectsNode.node("Grass_Modifier"), x -> specialEffectsBuilder.grassColorModifier(BiomeSpecialEffects.GrassColorModifier.valueOf(x.getString())));
 
         compute(specialEffectsNode.node("Foliage_Color"), x -> specialEffectsBuilder.foliageColorOverride(fromRgbString(x.getString()).asRGB()));
+        compute(specialEffectsNode.node("Grass_Color"), x -> specialEffectsBuilder.grassColorOverride(fromRgbString(x.getString()).asRGB()));
 
         var ambientParticleNode = specialEffectsNode.node("Particle");
         compute(ambientParticleNode.node("Type"), x -> {
@@ -198,10 +199,13 @@ public class NotBiomeManager extends JavaPlugin {
                 compute(x.node("Override_Previous_Music"), y -> specialEffectsBuilder.singleBackgroundMusicReplaceCurrentMusic = Optional.of(y.getBoolean()));
             }
         });
+        System.out.println("THE SPECIAL EFFECTS BUILDER IS "+specialEffectsBuilder.build());
 
         biomeBuilder.specialEffects(specialEffectsBuilder.build());
 
-        return Pair.of(key,biomeBuilder.build());
+        Biome biome = biomeBuilder.build();
+        System.out.println("biome thing "+biome.getSpecialEffects().getAmbientParticleSettings());
+        return Pair.of(key,biome);
     }
 
 
