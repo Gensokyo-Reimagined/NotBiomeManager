@@ -1,19 +1,12 @@
 package net.gensokyoreimagined.notbiomemanager;
 
-import com.google.common.primitives.Doubles;
 import com.google.common.primitives.Floats;
 import com.google.common.primitives.Ints;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.StringReader;
-import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
-import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
-import com.mojang.brigadier.suggestion.SuggestionProvider;
-import com.mojang.brigadier.suggestion.Suggestions;
-import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import it.unimi.dsi.fastutil.Pair;
@@ -43,6 +36,7 @@ import org.spongepowered.configurate.ConfigurationOptions;
 import org.spongepowered.configurate.hocon.HoconConfigurationLoader;
 import org.spongepowered.configurate.loader.ConfigurationLoader;
 import org.spongepowered.configurate.serialize.SerializationException;
+import org.spongepowered.configurate.yaml.NodeStyle;
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader;
 
 import java.io.File;
@@ -50,7 +44,6 @@ import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 
@@ -83,6 +76,12 @@ public class NotBiomeManager extends JavaPlugin {
         return defaultConfig;
     }
 
+    YamlConfigurationLoader.Builder builder = YamlConfigurationLoader.builder().indent(4).nodeStyle(NodeStyle.BLOCK);
+
+    Map<ResourceLocation,Path> biomeConfigurationFiles = new HashMap<>();
+
+    Path biomesFolder = Paths.get(getDataFolder().getPath(),"biomes");
+
     @Override
     public void onLoad(){
         logger=getLogger();
@@ -104,13 +103,12 @@ public class NotBiomeManager extends JavaPlugin {
         } catch (ConfigurateException e) {
             throw new RuntimeException(e);
         }
-        Path biomesFolder = Paths.get(getDataFolder().getPath(),"biomes");
         biomesFolder.toFile().mkdirs();
 
         List<Pair<NamespacedKey, Biome>> toAddBiomes = new ArrayList<>();
         FileUtils.iterateFiles(biomesFolder.toFile(), new String[]{"yml","yaml"},true).forEachRemaining(file -> {
             //if(FilenameUtils.getExtension(file.getPath()).equalsIgnoreCase());
-            System.out.println("Loading biome file "+file.getName());
+            logger.info("Loading biome file "+file.getName());
             var loader = YamlConfigurationLoader.builder()
                     .file(file)
                     .defaultOptions(configurationOptions)
@@ -118,20 +116,20 @@ public class NotBiomeManager extends JavaPlugin {
             try{
                 CommentedConfigurationNode node = loader.load();
                 toAddBiomes.add(loadBiomeConfig(node));
+                biomeConfigurationFiles.put(ResourceLocation.bySeparator(toAddBiomes.getLast().first().asString(),':'), file.toPath());
             }catch(ConfigurateException e){
                 e.printStackTrace();
             }
         });
 
         for(var pair : toAddBiomes){
-            System.out.println("Registering biome "+pair.key());
+            logger.info("Registering biome "+pair.key());
             try{
                 registerBiome(pair.key(),pair.value());
             }catch(Exception e){
                 e.printStackTrace();
             }
         }
-
     }
 
     @Override
@@ -177,15 +175,25 @@ public class NotBiomeManager extends JavaPlugin {
                                                                     }
                                                             )
                                                     .executes(ctx -> {
-                                                        String newBiomeId = StringArgumentType.getString(ctx,"newBiomeId");
+                                                        String newBiomeId = StringArgumentType.getString(ctx,"newBiomeId").replace('+',':');
                                                         String baseBiome = StringArgumentType.getString(ctx,"baseBiome");
 
                                                         Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
-                                                        if(biomes.containsKey(ResourceLocation.bySeparator(newBiomeId,'+'))){
+                                                        if(biomes.containsKey(ResourceLocation.bySeparator(newBiomeId,':'))){
                                                             throw new SimpleCommandExceptionType(() -> "Biome "+newBiomeId+" already exists").create();
                                                         }
 
-                                                        var defaultConfigNode = YamlConfigurationLoader.builder().build().createNode();
+
+                                                        Path saveFilePath = Path.of(NamespacedKey.fromString(newBiomeId).namespace(),NamespacedKey.fromString(newBiomeId).value()+".yaml");
+
+                                                        File saveFile = biomesFolder.resolve(saveFilePath).toFile();
+                                                        if(saveFile.exists()){
+                                                            throw new SimpleCommandExceptionType(() -> "File "+saveFilePath+" already exists, biome creation will be cancelled to not overwrite.").create();
+                                                        }
+                                                        saveFile.getParentFile().mkdirs();
+
+                                                        var loader = builder.file(saveFile).build();
+                                                        var defaultConfigNode = loader.createNode();
                                                         try{
                                                             defaultConfigNode.node("Custom").set(true);
                                                             defaultConfigNode.node("Key").set(NamespacedKey.fromString(newBiomeId).asString());
@@ -193,8 +201,18 @@ public class NotBiomeManager extends JavaPlugin {
                                                         }catch(SerializationException e){
                                                             throw new RuntimeException(e);
                                                         }
+
+
+                                                        try{
+                                                            loader.save(defaultConfigNode);
+                                                        }catch(ConfigurateException e){
+                                                            throw new RuntimeException(e);
+                                                        }
+
+
                                                         var biomeEntry = loadBiomeConfig(defaultConfigNode);
                                                         registerBiome(biomeEntry.key(),biomeEntry.value());
+                                                        biomeConfigurationFiles.put(ResourceLocation.bySeparator(newBiomeId,':'),saveFile.toPath());
                                                         ctx.getSource().getSender().sendMessage("Created new biome with key "+newBiomeId);
 
 
@@ -241,28 +259,49 @@ public class NotBiomeManager extends JavaPlugin {
                                                         var biome = biomes.getValue(location);
                                                         var builder = SpecialEffectsBuilder.getSpecialEffects(biome);
 
-                                                        var node = YamlConfigurationLoader.builder().build().createNode();
+                                                        CommentedConfigurationNode node;
+                                                        YamlConfigurationLoader loader = null;
+                                                        if(biomeConfigurationFiles.containsKey(location)){
+                                                            try{
+                                                                loader = this.builder.file(biomeConfigurationFiles.get(location).toFile()).build();
+                                                                node = loader.load();
+                                                            }catch(ConfigurateException e){
+                                                                throw new RuntimeException(e);
+                                                            }
+                                                        }else{
+                                                            node = YamlConfigurationLoader.builder().build().createNode();
+                                                        }
 
                                                         try{
                                                             if(valueInt!=null){
-                                                                node.node((Object[])configKey.split("\\.")).set(valueInt);
+                                                                node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(valueInt);
                                                             }else if(valueFloat!=null){
-                                                                node.node((Object[])configKey.split("\\.")).set(valueFloat);
+                                                                node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(valueFloat);
                                                             }else{
-                                                                node.node((Object[])configKey.split("\\.")).set(value);
+                                                                node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(value);
                                                             }
                                                         }catch(SerializationException e){
                                                             throw new RuntimeException(e);
                                                         }
-                                                        ctx.getSource().getSender().sendMessage("Set value "+configKey+" to "+value+" for biome "+biomeId);
 
-                                                        applyConfigTo(node,builder);
+                                                        applyConfigTo(node.node("Special_Effects"),builder);
 
                                                         try{
                                                             specialEffectsField.set(biome,builder.build());
                                                         }catch(IllegalAccessException e){
                                                             throw new RuntimeException(e);
                                                         }
+
+                                                        if(loader!=null){
+                                                            try{
+                                                                loader.save(node);
+                                                            }catch(ConfigurateException e){
+                                                                throw new RuntimeException(e);
+                                                            }
+                                                        }
+
+
+                                                        ctx.getSource().getSender().sendMessage("Set value "+configKey+" to "+value+" for biome "+biomeId);
 
                                                         return Command.SINGLE_SUCCESS;
                                                     }))))
@@ -321,12 +360,10 @@ public class NotBiomeManager extends JavaPlugin {
 
         applyConfigTo(node.node("Special_Effects"),specialEffectsBuilder);
 
-        System.out.println("THE SPECIAL EFFECTS BUILDER IS "+specialEffectsBuilder.build());
 
         biomeBuilder.specialEffects(specialEffectsBuilder.build());
 
         Biome biome = biomeBuilder.build();
-        System.out.println("biome thing "+biome.getSpecialEffects().getAmbientParticleSettings());
         return Pair.of(key,biome);
     }
 
@@ -344,10 +381,6 @@ public class NotBiomeManager extends JavaPlugin {
         compute(node.node("Water_Color"),x -> specialEffectsBuilder.waterColor(fromRgbString(x.getString()).asRGB()));
         compute(node.node("Water_Fog_Color"),x -> specialEffectsBuilder.waterFogColor(fromRgbString(x.getString()).asRGB()));
         compute(node.node("Sky_Color"),x -> specialEffectsBuilder.skyColor(fromRgbString(x.getString()).asRGB()));
-//        specialEffectsBuilder.fogColor((fromRgbString(getOrDefault(specialEffectsNode.node("Fog_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
-//        specialEffectsBuilder.waterColor((fromRgbString(getOrDefault(specialEffectsNode.node("Water_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
-//        specialEffectsBuilder.waterFogColor((fromRgbString(getOrDefault(specialEffectsNode.node("Water_Fog_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
-//        specialEffectsBuilder.skyColor((fromRgbString(getOrDefault(specialEffectsNode.node("Sky_Color"),toRgbString(Color.fromRGB(base.getFogColor()))))).asRGB());
 
         compute(node.node("Grass_Modifier"),x -> specialEffectsBuilder.grassColorModifier(BiomeSpecialEffects.GrassColorModifier.valueOf(x.getString())));
 
@@ -391,6 +424,12 @@ public class NotBiomeManager extends JavaPlugin {
             }
         });
     }
+
+//    void saveBiomeTo(ConfigurationNode node, ResourceLocation location, Biome biome) throws SerializationException{
+//        node.node("Key").set(location.getNamespace()+":"+location.getPath());
+//        node.node("Custom").set(true);
+//        node.node("Base")
+//    }
 
 
     public void loadConfig(ConfigurationNode node){
