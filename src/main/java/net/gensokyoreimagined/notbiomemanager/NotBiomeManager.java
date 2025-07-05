@@ -24,6 +24,7 @@ import org.apache.commons.io.FileUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Server;
 import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -109,16 +110,37 @@ public class NotBiomeManager extends JavaPlugin {
         FileUtils.iterateFiles(biomesFolder.toFile(), new String[]{"yml","yaml"},true).forEachRemaining(file -> {
             //if(FilenameUtils.getExtension(file.getPath()).equalsIgnoreCase());
             logger.info("Loading biome file "+file.getName());
-            var loader = YamlConfigurationLoader.builder()
-                    .file(file)
-                    .defaultOptions(configurationOptions)
-                    .build();
+            CommentedConfigurationNode node = null;
             try{
-                CommentedConfigurationNode node = loader.load();
+                var loader = YamlConfigurationLoader.builder()
+                        .file(file)
+                        .defaultOptions(configurationOptions)
+                        .build();
+                node = loader.load();
+            }catch(Exception e){
+                e.printStackTrace();
+                logger.severe("Failed to load biome file "+file.getName()+", stopping server.");
+                getServer().shutdown();
+            }
+            if(node==null){
+                return;
+            }
+
+            try{
                 toAddBiomes.add(loadBiomeConfig(node));
                 biomeConfigurationFiles.put(ResourceLocation.bySeparator(toAddBiomes.getLast().first().asString(),':'), file.toPath());
-            }catch(ConfigurateException e){
+            }catch(Exception e){
                 e.printStackTrace();
+                logger.severe("Failed to parse biome file "+file.getName()+" ATTEMPTING TO REGISTER PLACEHOLDER");
+                try{
+                    NamespacedKey key = NamespacedKey.fromString(node.node("Key").getString().toLowerCase());
+                    Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
+                    Biome base = (biomes.get(ResourceLocation.fromNamespaceAndPath("minecraft", "plains")).get()).value();
+                    toAddBiomes.add(Pair.of(key, base));
+                }catch(Exception e2){
+                    logger.severe("Failed to register placeholder for "+file.getName()+", stopping server.");
+                    getServer().shutdown();
+                }
             }
         });
 
@@ -128,6 +150,8 @@ public class NotBiomeManager extends JavaPlugin {
                 registerBiome(pair.key(),pair.value());
             }catch(Exception e){
                 e.printStackTrace();
+                logger.severe("Failed to register biome "+pair.key()+", stopping server.");
+                getServer().shutdown();
             }
         }
     }
@@ -296,8 +320,11 @@ public class NotBiomeManager extends JavaPlugin {
                                                             try{
                                                                 loader.save(node);
                                                             }catch(ConfigurateException e){
+                                                                ctx.getSource().getSender().sendMessage("Error while saving config value, check logs!");
                                                                 throw new RuntimeException(e);
                                                             }
+                                                        }else{
+                                                            ctx.getSource().getSender().sendMessage("Biome "+biomeId+" doesn't have a configuration file, configuration was not saved!");
                                                         }
 
 
@@ -374,7 +401,7 @@ public class NotBiomeManager extends JavaPlugin {
             "Music.Sound","Music.Min_Delay","Music.Max_Delay","Music.Override_Previous_Music"
     };
 
-    void applyConfigTo(ConfigurationNode node, SpecialEffectsBuilder specialEffectsBuilder){
+    void applyConfigTo(ConfigurationNode node, SpecialEffectsBuilder specialEffectsBuilder) {
 
 
         compute(node.node("Fog_Color"),x -> specialEffectsBuilder.fogColor(fromRgbString(x.getString()).asRGB()));
@@ -394,9 +421,9 @@ public class NotBiomeManager extends JavaPlugin {
             try{
                 nmsParticle = ParticleArgument.readParticle(new StringReader(x.getString()), access);
             }catch(CommandSyntaxException e){
-                throw new RuntimeException(e);
+                logger.warning("Exception encountered for particle "+e.toString());
             }
-            specialEffectsBuilder.ambientParticleParticleOptions = Optional.of(nmsParticle);
+            specialEffectsBuilder.ambientParticleParticleOptions = Optional.ofNullable(nmsParticle);
         });
         compute(ambientParticleNode.node("Density"), x -> specialEffectsBuilder.ambientParticleProbability = Optional.of(x.getFloat()));
 
@@ -415,7 +442,7 @@ public class NotBiomeManager extends JavaPlugin {
 
         compute(node.node("Music"),x -> {
             if(x.isList()){
-                throw new RuntimeException("Unsupported list syntax for Music");
+                logger.warning("Unsupported list syntax for Music");
             }else{
                 compute(x.node("Sound"), y -> specialEffectsBuilder.singleBackgroundMusicSoundEvent = Optional.ofNullable(getSoundFromKey(y.getString())));
                 compute(x.node("Min_Delay"), y -> specialEffectsBuilder.singleBackgroundMusicMinDelay = Optional.of(x.getInt()));

@@ -4,11 +4,11 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.util.random.SimpleWeightedRandomList;
+import net.minecraft.util.random.WeightedList;
 import net.minecraft.world.level.biome.*;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.Optional;
 
@@ -55,7 +55,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
     }
 
 
-    private Optional<SimpleWeightedRandomList<Music>> backgroundMusic = Optional.empty();
+    private Optional<WeightedList<Music>> backgroundMusic = Optional.empty();
 
     public BiomeSpecialEffects.Builder backgroundMusic(@Nullable Music backgroundMusic) {
         super.backgroundMusic(backgroundMusic);
@@ -63,12 +63,12 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
             this.backgroundMusic = Optional.empty();
             return this;
         } else {
-            this.backgroundMusic = Optional.of(SimpleWeightedRandomList.single(backgroundMusic));
+            this.backgroundMusic = Optional.of(WeightedList.of(backgroundMusic));
             return this;
         }
     }
 
-    public BiomeSpecialEffects.Builder backgroundMusic(SimpleWeightedRandomList<Music> backgroundMusic) {
+    public BiomeSpecialEffects.Builder backgroundMusic(WeightedList<Music> backgroundMusic) {
         super.backgroundMusic(backgroundMusic);
         this.backgroundMusic = Optional.of(backgroundMusic);
         return this;
@@ -86,7 +86,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
     public Optional<Holder<SoundEvent>>    ambientAdditionsSoundEvent = Optional.empty();
     public Optional<Double>                ambientAdditionsTickChance = Optional.empty();
 
-    public Optional<Holder<SoundEvent>>    singleBackgroundMusicSoundEvent = Optional.empty();
+    public Optional<@org.jetbrains.annotations.Nullable Holder<SoundEvent>>    singleBackgroundMusicSoundEvent = Optional.empty();
     public Optional<Integer>               singleBackgroundMusicMinDelay = Optional.empty();
     public Optional<Integer>               singleBackgroundMusicMaxDelay = Optional.empty();
     public Optional<Boolean>               singleBackgroundMusicReplaceCurrentMusic = Optional.empty();
@@ -148,9 +148,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
                 ambientMoodBlockSearchExtent.isPresent() &&
                 ambientMoodSoundPositionOffset.isPresent()
         ){
-            if(ambientMoodSoundEvent.get()!=null){
-                super.ambientMoodSound(new AmbientMoodSettings(ambientMoodSoundEvent.get(),ambientMoodTickDelay.get(),ambientMoodBlockSearchExtent.get(),ambientMoodSoundPositionOffset.get()));
-            }
+            super.ambientMoodSound(new AmbientMoodSettings(ambientMoodSoundEvent.get(),ambientMoodTickDelay.get(),ambientMoodBlockSearchExtent.get(),ambientMoodSoundPositionOffset.get()));
         }
 
         if(
@@ -173,20 +171,16 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
                     singleBackgroundMusicMaxDelay.isPresent() &&
                     singleBackgroundMusicReplaceCurrentMusic.isPresent()
             ){
-                if(singleBackgroundMusicSoundEvent.get()!=null){
-                    super.backgroundMusic(new Music(singleBackgroundMusicSoundEvent.get(),singleBackgroundMusicMinDelay.get(),singleBackgroundMusicMaxDelay.get(),singleBackgroundMusicReplaceCurrentMusic.get()));
-                }else{
-                    super.backgroundMusic((Music)null);
-                }
+                super.backgroundMusic(new Music(singleBackgroundMusicSoundEvent.get(),singleBackgroundMusicMinDelay.get(),singleBackgroundMusicMaxDelay.get(),singleBackgroundMusicReplaceCurrentMusic.get()));
             }else if(this.backgroundMusic.isEmpty() || this.backgroundMusic.get().unwrap().size() != 1){
                 //System.out.println("things are "+singleBackgroundMusicSoundEvent+" and "+singleBackgroundMusicMinDelay+" and "+singleBackgroundMusicMaxDelay+" and "+singleBackgroundMusicReplaceCurrentMusic);
                 System.out.println("Base background music has invalid length for single overriding syntax / not enough valid configuration values provided for a single track");
             }else{
-                var original = this.backgroundMusic.get().unwrap().getFirst().data();
+                var original = this.backgroundMusic.get().unwrap().getFirst().value();
                 super.backgroundMusic(new Music(
-                        singleBackgroundMusicSoundEvent.orElse(original.getEvent()),
-                        singleBackgroundMusicMinDelay.orElse(original.getMinDelay()),
-                        singleBackgroundMusicMaxDelay.orElse(original.getMaxDelay()),
+                        singleBackgroundMusicSoundEvent.orElse(original.event()),
+                        singleBackgroundMusicMinDelay.orElse(original.minDelay()),
+                        singleBackgroundMusicMaxDelay.orElse(original.maxDelay()),
                         singleBackgroundMusicReplaceCurrentMusic.orElse(original.replaceCurrentMusic())
                 ));
             }
