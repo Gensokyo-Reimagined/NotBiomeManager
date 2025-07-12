@@ -27,6 +27,7 @@ public class SpecialEffectsBuilder extends BiomeSpecialEffects.Builder {
 
         effects.getGrassColorOverride().ifPresent(builder::grassColorOverride);
         effects.getFoliageColorOverride().ifPresent(builder::foliageColorOverride);
+        effects.getDryFoliageColorOverride().ifPresent(builder::dryFoliageColorOverride);
         effects.getAmbientLoopSoundEvent().ifPresent(builder::ambientLoopSound);
 
         if (effects.getAmbientParticleSettings().isPresent()) {

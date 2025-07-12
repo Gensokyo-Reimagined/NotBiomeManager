@@ -348,6 +348,9 @@ public class NotBiomeManager extends JavaPlugin {
 
     public static Color fromRgbString(String string){
         var splitted = string.split("-");
+        if(splitted.length == 1){
+            return Color.fromRGB(Integer.parseInt(splitted[0].replaceAll("#",""),16));
+        }
         return Color.fromRGB(Integer.parseInt(splitted[0]),Integer.parseInt(splitted[1]),Integer.parseInt(splitted[2]));
     }
 
@@ -394,7 +397,7 @@ public class NotBiomeManager extends JavaPlugin {
         return Pair.of(key,biome);
     }
 
-    private static final String[] allFields = new String[]{"Fog_Color","Water_Color","Water_Fog_Color","Sky_Color","Grass_Modifier","Foliage_Color","Grass_Color",
+    private static final String[] allFields = new String[]{"Fog_Color","Water_Color","Water_Fog_Color","Sky_Color","Grass_Modifier","Foliage_Color","Dry_Foliage_Color","Grass_Color",
             "Particle.Type","Particle.Density",
             "Cave_Sound.Sound","Cave_Sound.Tick_Delay","Cave_Sound.Search_Distance","Cave_Sound.Sound_Offset",
             "Random_Sound.Sound","Random_Sound.Tick_Chance",
@@ -412,6 +415,7 @@ public class NotBiomeManager extends JavaPlugin {
         compute(node.node("Grass_Modifier"),x -> specialEffectsBuilder.grassColorModifier(BiomeSpecialEffects.GrassColorModifier.valueOf(x.getString())));
 
         compute(node.node("Foliage_Color"),x -> specialEffectsBuilder.foliageColorOverride(fromRgbString(x.getString()).asRGB()));
+        compute(node.node("Dry_Foliage_Color"),x -> specialEffectsBuilder.dryFoliageColorOverride(fromRgbString(x.getString()).asRGB()));
         compute(node.node("Grass_Color"),x -> specialEffectsBuilder.grassColorOverride(fromRgbString(x.getString()).asRGB()));
 
         var ambientParticleNode = node.node("Particle");
