@@ -100,6 +100,53 @@ public class BiomeConfigLoader {
                                 Integer.parseInt(splitted[2]));
         }
 
+        private static int parseArgb(String string) {
+                string = string.trim();
+                int alpha = 255;
+                String colorPart = string;
+
+                // Check for separate alpha input (e.g. "#RRGGBB 128")
+                if (string.contains(" ")) {
+                        String[] parts = string.split(" ");
+                        if (parts.length >= 2) {
+                                colorPart = parts[0];
+                                try {
+                                        alpha = Integer.parseInt(parts[1]);
+                                } catch (NumberFormatException ignored) {
+                                }
+                        }
+                }
+
+                int rgb = 0;
+                // Handle R-G-B format
+                if (colorPart.contains("-")) {
+                        var splitted = colorPart.split("-");
+                        if (splitted.length >= 3) {
+                                int r = Integer.parseInt(splitted[0]);
+                                int g = Integer.parseInt(splitted[1]);
+                                int b = Integer.parseInt(splitted[2]);
+                                rgb = (r << 16) | (g << 8) | b;
+                        }
+                } else {
+                        // Handle Hex
+                        String hex = colorPart.startsWith("#") ? colorPart.substring(1) : colorPart;
+                        try {
+                                rgb = Integer.parseInt(hex, 16);
+                        } catch (NumberFormatException e) {
+                                logger.warning("Invalid hex color: " + colorPart);
+                        }
+                }
+
+                // Pack ARGB
+                // Clamp alpha
+                if (alpha < 0)
+                        alpha = 0;
+                if (alpha > 255)
+                        alpha = 255;
+
+                return (alpha << 24) | (rgb & 0xFFFFFF);
+        }
+
         private static void applyConfigTo(ConfigurationNode root, SpecialEffectsBuilder specialEffectsBuilder) {
                 ConfigurationNode legacyNode = root.node("Special_Effects");
                 ConfigurationNode attributesNode = root.node("attributes");
@@ -159,9 +206,9 @@ public class BiomeConfigLoader {
 
                 // Cloud Color
                 compute(legacyNode.node("Cloud_Color"),
-                                x -> specialEffectsBuilder.cloudColor(fromRgbString(x.getString()).asRGB()));
+                                x -> specialEffectsBuilder.cloudColor(parseArgb(x.getString())));
                 compute(attributesNode.node("minecraft:visual/cloud_color"),
-                                x -> specialEffectsBuilder.cloudColor(fromRgbString(x.getString()).asRGB()));
+                                x -> specialEffectsBuilder.cloudColor(parseArgb(x.getString())));
 
                 // Cloud Height
                 compute(legacyNode.node("Cloud_Height"), x -> specialEffectsBuilder.cloudHeight(x.getDouble()));
@@ -204,9 +251,9 @@ public class BiomeConfigLoader {
 
                 // Sunrise Sunset Color
                 compute(legacyNode.node("Sunrise_Sunset_Color"),
-                                x -> specialEffectsBuilder.sunriseSunsetColor(fromRgbString(x.getString()).asRGB()));
+                                x -> specialEffectsBuilder.sunriseSunsetColor(parseArgb(x.getString())));
                 compute(attributesNode.node("minecraft:visual/sunrise_sunset_color"),
-                                x -> specialEffectsBuilder.sunriseSunsetColor(fromRgbString(x.getString()).asRGB()));
+                                x -> specialEffectsBuilder.sunriseSunsetColor(parseArgb(x.getString())));
 
                 // Star Brightness
                 compute(legacyNode.node("Star_Brightness"), x -> specialEffectsBuilder.starBrightness(x.getDouble()));
