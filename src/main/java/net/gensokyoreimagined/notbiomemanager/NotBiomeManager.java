@@ -28,7 +28,6 @@ import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import org.bukkit.craftbukkit.CraftServer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -197,7 +196,7 @@ public class NotBiomeManager extends JavaPlugin {
                     .build();
             CommentedConfigurationNode node = loader.load();
 
-            Registry<Biome> biomes = ((CraftServer) getServer()).getServer().registryAccess().lookup(Registries.BIOME)
+            Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME)
                     .orElseThrow();
 
             Pair<NamespacedKey, Biome> result = BiomeConfigLoader.loadBiome(node, biomes);
@@ -213,7 +212,7 @@ public class NotBiomeManager extends JavaPlugin {
                     attributesField.setAccessible(true);
                     attributesField.set(existingBiome, attributesField.get(newBiomeData));
                 } catch (NoSuchFieldException e) {
-                    // Ignore if field doesn't exist (older versions?)
+                    // i love glue
                 }
 
                 logger.info("Reloaded biome " + key);

@@ -24,6 +24,9 @@ public class BiomeCommands {
     private static final String[] ALL_FIELDS = new String[] {
             "Fog_Color", "Water_Color", "Water_Fog_Color", "Sky_Color",
             "Grass_Modifier", "Foliage_Color", "Grass_Color", "Dry_Foliage_Color",
+            "Cloud_Color", "Cloud_Height", "Cloud_Fog_End_Distance",
+            "Fog_Start_Distance", "Fog_End_Distance", "Sky_Fog_End_Distance",
+            "Sky_Light_Color", "Sky_Light_Factor", "Sunrise_Sunset_Color", "Star_Brightness",
             "Particle.Type", "Particle.Density",
             "Cave_Sound.Sound", "Cave_Sound.Tick_Delay", "Cave_Sound.Search_Distance", "Cave_Sound.Sound_Offset",
             "Random_Sound.Sound", "Random_Sound.Tick_Chance",
@@ -73,36 +76,39 @@ public class BiomeCommands {
                                             for (String field : ALL_FIELDS) {
                                                 builder.suggest("Special_Effects." + field);
                                             }
-                                            List.of(
-                                                    "attributes.minecraft:visual/sky_color",
-                                                    "attributes.minecraft:visual/fog_color").forEach(builder::suggest);
                                             return builder.buildFuture();
                                         })
                                         .then(Commands.argument("value", StringArgumentType.greedyString())
                                                 .suggests((ctx, builder) -> {
-                                                    String path = StringArgumentType.getString(ctx, "path");
-                                                    if (path.endsWith("Particle.Type") || path.contains("particle")) {
-                                                        BuiltInRegistries.PARTICLE_TYPE.keySet()
-                                                                .forEach(k -> builder.suggest(k.toString()));
-                                                    } else if (path.endsWith("Sound") || path.contains("sound")
-                                                            || path.contains("music")) {
-                                                        BuiltInRegistries.SOUND_EVENT.keySet()
-                                                                .forEach(k -> builder.suggest(k.toString()));
-                                                    } else if (path.endsWith("Color") || path.contains("color")) {
-                                                        builder.suggest("#FFFFFF");
-                                                        builder.suggest("255-255-255");
-                                                    } else if (path.endsWith("Grass_Modifier")) {
-                                                        builder.suggest("NONE");
-                                                        builder.suggest("DARK_FOREST");
-                                                        builder.suggest("SWAMP");
-                                                    } else if (path.contains("Delay") || path.contains("Chance")
-                                                            || path.contains("Density") || path.contains("Offset")) {
-                                                        builder.suggest("1.0");
-                                                        builder.suggest("0.5");
-                                                        builder.suggest("100");
-                                                    } else if (path.contains("Override")) {
-                                                        builder.suggest("true");
-                                                        builder.suggest("false");
+                                                    try {
+                                                        String path = StringArgumentType.getString(ctx, "path");
+                                                        if (path.endsWith("Particle.Type")
+                                                                || path.contains("particle")) {
+                                                            BuiltInRegistries.PARTICLE_TYPE.keySet()
+                                                                    .forEach(k -> builder.suggest(k.toString()));
+                                                        } else if (path.endsWith("Sound") || path.contains("sound")
+                                                                || path.contains("music")) {
+                                                            BuiltInRegistries.SOUND_EVENT.keySet()
+                                                                    .forEach(k -> builder.suggest(k.toString()));
+                                                        } else if (path.endsWith("Color") || path.contains("color")) {
+                                                            builder.suggest("#FFFFFF");
+                                                            builder.suggest("255-255-255");
+                                                        } else if (path.endsWith("Grass_Modifier")) {
+                                                            builder.suggest("NONE");
+                                                            builder.suggest("DARK_FOREST");
+                                                            builder.suggest("SWAMP");
+                                                        } else if (path.contains("Delay") || path.contains("Chance")
+                                                                || path.contains("Density")
+                                                                || path.contains("Offset")) {
+                                                            builder.suggest("1.0");
+                                                            builder.suggest("0.5");
+                                                            builder.suggest("100");
+                                                        } else if (path.contains("Override")) {
+                                                            builder.suggest("true");
+                                                            builder.suggest("false");
+                                                        }
+                                                    } catch (IllegalArgumentException ignored) {
+                                                        // Path argument might not be parsed yet
                                                     }
                                                     return builder.buildFuture();
                                                 })
