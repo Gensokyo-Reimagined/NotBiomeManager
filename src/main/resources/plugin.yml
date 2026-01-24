@@ -2,6 +2,7 @@ name: NotBiomeManager
 version: '${version}'
 main: net.gensokyoreimagined.notbiomemanager.NotBiomeManager
 api-version: '1.21'
+load: STARTUP
 authors: []
 depend: []
 softdepend: []
