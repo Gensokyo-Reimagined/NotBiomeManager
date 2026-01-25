@@ -156,14 +156,6 @@ public class SerializationUtils {
             throw new RuntimeException(e);
         }
     }
-
-    private static BiomeSpecialEffects getSpecialEffects(Biome.BiomeBuilder biomeBuilder) {
-        try{
-            return (BiomeSpecialEffects)biomeBuilderSpecialEffectsField.get(biomeBuilder);
-        }catch(IllegalAccessException e){
-            throw new RuntimeException(e);
-        }
-    }
     public static void applyConfigTo(ConfigurationNode baseNode, Biome.BiomeBuilder biomeBuilder) {
         baseNode = baseNode.copy();
 //        try{
@@ -300,7 +292,16 @@ public class SerializationUtils {
                 return false;
             }
         });
-        BiomeSpecialEffects origSpecialEffects = getSpecialEffects(biomeBuilder);
+
+        BiomeSpecialEffects origSpecialEffects = null;
+        try{
+            origSpecialEffects = (BiomeSpecialEffects)biomeBuilderSpecialEffectsField.get(biomeBuilder);
+        }catch(IllegalAccessException e){
+            throw new RuntimeException(e);
+        }
+        if(origSpecialEffects==null){
+            origSpecialEffects = new BiomeSpecialEffects.Builder().build();
+        }
         BiomeSpecialEffects.Builder biomeEffectsBuilder = new BiomeSpecialEffects.Builder()
             .waterColor(origSpecialEffects.waterColor());
         origSpecialEffects.foliageColorOverride().ifPresent(biomeEffectsBuilder::foliageColorOverride);

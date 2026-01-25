@@ -13,6 +13,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.attribute.EnvironmentAttributeMap;
 import net.minecraft.world.level.biome.*;
 import org.apache.commons.io.FileUtils;
 import org.bukkit.NamespacedKey;
@@ -287,6 +288,7 @@ public class NotBiomeManager extends JavaPlugin {
                                         throw new SimpleCommandExceptionType(() -> "Biome "+biomeId+" doesn't exist").create();
                                     }
                                     var biome = biomes.getValue(location);
+                                    assert biome!=null;
 
                                     CommentedConfigurationNode node;
                                     YamlConfigurationLoader loader = null;
@@ -313,12 +315,13 @@ public class NotBiomeManager extends JavaPlugin {
                                         throw new RuntimeException(e);
                                     }
 
-                                    Biome.BiomeBuilder tempBuilder = new Biome.BiomeBuilder();
+                                    Biome.BiomeBuilder tempBuilder = builderFromBiome(biome);
                                     SerializationUtils.applyConfigTo(node.node("Special_Effects"),tempBuilder);
 
                                     try{
                                         biomeSpecialEffectsField.set(biome,biomeBuilderSpecialEffectsField.get(tempBuilder));
-                                        biomeAttributesField.set(biome,biomeBuilderAttributesField.get(tempBuilder));
+                                        biomeAttributesField.set(biome,((EnvironmentAttributeMap.Builder)biomeBuilderAttributesField.get(tempBuilder)).build());
+
                                     }catch(IllegalAccessException e){
                                         throw new RuntimeException(e);
                                     }
@@ -359,23 +362,28 @@ public class NotBiomeManager extends JavaPlugin {
 
         Registry<Biome> biomes = MinecraftServer.getServer().registryAccess().lookup(Registries.BIOME).orElseThrow();
         Biome base = (biomes.get(Identifier.parse(node.node("Base").getString().toLowerCase())).get()).value();
-        var biomeBuilder = new Biome.BiomeBuilder();
-
-        biomeBuilder.hasPrecipitation(base.climateSettings.hasPrecipitation());
-        biomeBuilder.temperature(base.climateSettings.temperature());
-        biomeBuilder.temperatureAdjustment(base.climateSettings.temperatureModifier());
-        biomeBuilder.downfall(base.climateSettings.downfall());
-
-        biomeBuilder.mobSpawnSettings(base.getMobSettings());
-        biomeBuilder.generationSettings(base.getGenerationSettings());
-        biomeBuilder.putAttributes(base.getAttributes());
-        biomeBuilder.specialEffects(base.getSpecialEffects());
-        biomeBuilder.generationSettings(BiomeGenerationSettings.EMPTY);
+        Biome.BiomeBuilder biomeBuilder = builderFromBiome(base);
 
         SerializationUtils.applyConfigTo(node.node("Special_Effects"),biomeBuilder);
 
         Biome biome = biomeBuilder.build();
         return Pair.of(key,biome);
+    }
+    public static Biome.BiomeBuilder builderFromBiome(Biome biome){
+        var biomeBuilder = new Biome.BiomeBuilder();
+
+        biomeBuilder.hasPrecipitation(biome.climateSettings.hasPrecipitation());
+        biomeBuilder.temperature(biome.climateSettings.temperature());
+        biomeBuilder.temperatureAdjustment(biome.climateSettings.temperatureModifier());
+        biomeBuilder.downfall(biome.climateSettings.downfall());
+
+        biomeBuilder.mobSpawnSettings(biome.getMobSettings());
+        biomeBuilder.generationSettings(biome.getGenerationSettings());
+        biomeBuilder.putAttributes(biome.getAttributes());
+        biomeBuilder.specialEffects(biome.getSpecialEffects());
+        biomeBuilder.generationSettings(BiomeGenerationSettings.EMPTY);
+        return biomeBuilder;
+
     }
 
     public void loadConfig(ConfigurationNode node){
