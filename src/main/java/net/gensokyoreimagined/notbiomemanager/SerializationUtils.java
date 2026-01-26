@@ -41,7 +41,12 @@ public class SerializationUtils {
     public static Color fromArgbString(String string){
         var splitted = string.split("-");
         if(splitted.length == 1){
-            return Color.fromARGB((int)Long.parseLong(splitted[0].replaceAll("#","").replaceAll(" ",""),16));
+            var spacesplitted = string.split(" ");
+            if(spacesplitted.length>1){ //evil old biomemanager format
+                return fromRgbString(spacesplitted[0]).setAlpha(Integer.parseInt(spacesplitted[1]));
+            }else{
+                return Color.fromARGB((int)Long.parseLong(splitted[0].replaceAll("#",""),16));
+            }
         }
         return Color.fromARGB(Integer.parseInt(splitted[0]),Integer.parseInt(splitted[1]),Integer.parseInt(splitted[2]),Integer.parseInt(splitted[3]));
     }
@@ -175,6 +180,9 @@ public class SerializationUtils {
             toRemoveFrom.removeChild(origNode.key());
             while(toRemoveFrom.empty()){
                 ConfigurationNode temp = toRemoveFrom.parent();
+                if(temp==null){
+                    break;
+                }
                 temp.removeChild(toRemoveFrom.key());
                 toRemoveFrom = temp;
             }

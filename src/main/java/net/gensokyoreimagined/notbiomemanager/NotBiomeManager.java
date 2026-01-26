@@ -9,10 +9,13 @@ import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import it.unimi.dsi.fastutil.Pair;
 import net.minecraft.core.*;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.attribute.AttributeType;
+import net.minecraft.world.attribute.AttributeTypes;
 import net.minecraft.world.attribute.EnvironmentAttributeMap;
 import net.minecraft.world.level.biome.*;
 import org.apache.commons.io.FileUtils;
@@ -155,12 +158,34 @@ public class NotBiomeManager extends JavaPlugin {
     }
 
     //todo update to new system later
-    private static final List<String> allFieldsOld = List.of("Fog_Color","Water_Color","Water_Fog_Color","Sky_Color","Grass_Modifier","Foliage_Color","Dry_Foliage_Color","Grass_Color",
+    private static final List<String> allFieldsOld = new ArrayList<>(List.of("Fog_Color","Water_Color","Cloud_Color","Water_Fog_Color","Sky_Color","Grass_Modifier","Foliage_Color","Dry_Foliage_Color","Grass_Color",
         "Particle.Type","Particle.Density",
         "Cave_Sound.Sound","Cave_Sound.Tick_Delay","Cave_Sound.Search_Distance","Cave_Sound.Sound_Offset",
         "Random_Sound.Sound","Random_Sound.Tick_Chance",
         "Music.Sound","Music.Min_Delay","Music.Max_Delay","Music.Override_Previous_Music"
-    );
+    ));
+    static {
+        List<AttributeType<?>> supportedStringAttributes = List.of(
+            AttributeTypes.BOOLEAN,
+            AttributeTypes.TRI_STATE,
+            AttributeTypes.FLOAT,
+            AttributeTypes.RGB_COLOR,
+            AttributeTypes.ARGB_COLOR,
+            AttributeTypes.MOON_PHASE,
+            AttributeTypes.BED_RULE
+//            AttributeTypes.AMBIENT_PARTICLES,
+//            AttributeTypes.PARTICLE,
+//            AttributeTypes.BACKGROUND_MUSIC,
+//            AttributeTypes.AMBIENT_SOUNDS
+        );
+        BuiltInRegistries.ENVIRONMENT_ATTRIBUTE.entrySet().forEach(entry -> {
+            if(!supportedStringAttributes.contains(entry.getValue().type())){
+                return;
+            }
+            allFieldsOld.add(entry.getKey().identifier().getPath().replace("/","."));
+        });
+    }
+
 
     @Override
     public void onEnable(){
