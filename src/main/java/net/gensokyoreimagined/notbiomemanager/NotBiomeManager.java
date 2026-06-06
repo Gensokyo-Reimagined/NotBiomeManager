@@ -299,10 +299,15 @@ public class NotBiomeManager extends JavaPlugin {
                                 .executes(ctx -> {
                                     String biomeId = StringArgumentType.getString(ctx,"biome");
                                     String configKey = StringArgumentType.getString(ctx,"configKey");
-                                    if(!configKey.contains(".")){
-                                        configKey = configKey+".";
-                                    }
                                     String value = StringArgumentType.getString(ctx,"value").replaceAll("\\+",":");
+
+                                    AttributeType<?> type = null;
+                                    for(var entry : BuiltInRegistries.ENVIRONMENT_ATTRIBUTE.entrySet()){
+                                        if(entry.getKey().identifier().getPath().replace("/",".").equals(configKey)){
+                                            type = entry.getValue().type();
+                                        }
+                                    }
+
                                     Integer valueInt = Ints.tryParse(value);
                                     Float valueFloat = Floats.tryParse(value);
 
@@ -329,10 +334,14 @@ public class NotBiomeManager extends JavaPlugin {
                                     }
 
                                     try{
-                                        if(valueInt!=null){
-                                            node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(valueInt);
-                                        }else if(valueFloat!=null){
-                                            node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(valueFloat);
+                                        if(AttributeTypes.FLOAT.equals(type)||type==null){
+                                            if(valueInt!=null){
+                                                node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(valueInt);
+                                            }else if(valueFloat!=null){
+                                                node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(valueFloat);
+                                            }else{
+                                                node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(value);
+                                            }
                                         }else{
                                             node.node("Special_Effects").node((Object[])configKey.split("\\.")).set(value);
                                         }
