@@ -2,7 +2,7 @@ plugins {
     id("java")
     id("com.gradleup.shadow") version "9.3.1"
     id("maven-publish")
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.19"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.21"
     id("xyz.jpenilla.run-paper") version "3.0.2" // Adds runServer and runMojangMappedServer tasks for testing
 }
 
@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    paperweight.paperDevBundle("1.21.11-R0.1-SNAPSHOT")
+    paperweight.paperDevBundle("26.2.build.+")
     implementation("org.spongepowered:configurate-hocon:4.1.2")
     implementation("org.spongepowered:configurate-yaml:4.1.2")
 }
@@ -27,7 +27,7 @@ dependencies {
 
 tasks {
     compileJava {
-        options.release = 21
+        options.release = 25
     }
     javadoc {
         options.encoding = Charsets.UTF_8.name() // We want UTF-8 for everything
