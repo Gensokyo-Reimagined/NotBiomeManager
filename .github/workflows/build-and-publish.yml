@@ -12,10 +12,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: JDK 21 setup
+      - name: JDK 25 setup
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
           server-id: github
           settings-path: ${{ github.workspace }}
