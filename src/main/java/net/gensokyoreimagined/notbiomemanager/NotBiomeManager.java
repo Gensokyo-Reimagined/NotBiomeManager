@@ -411,7 +411,6 @@ public class NotBiomeManager extends JavaPlugin {
         biomeBuilder.temperatureAdjustment(biome.climateSettings.temperatureModifier());
         biomeBuilder.downfall(biome.climateSettings.downfall());
 
-        biomeBuilder.mobSpawnSettings(biome.getMobSettings());
         biomeBuilder.generationSettings(biome.getGenerationSettings());
         biomeBuilder.putAttributes(biome.getAttributes());
         biomeBuilder.specialEffects(biome.getSpecialEffects());

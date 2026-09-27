@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    paperweight.paperDevBundle("26.2.build.+")
+    paperweight.paperDevBundle("26.3.build.+")
     implementation("org.spongepowered:configurate-hocon:4.1.2")
     implementation("org.spongepowered:configurate-yaml:4.1.2")
 }

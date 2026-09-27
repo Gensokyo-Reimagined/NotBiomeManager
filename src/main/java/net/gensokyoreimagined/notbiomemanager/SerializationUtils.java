@@ -8,6 +8,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.Music;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.ARGB;
 import net.minecraft.util.TriState;
 import net.minecraft.world.attribute.*;
 import net.minecraft.world.level.MoonPhase;
@@ -236,9 +237,9 @@ public class SerializationUtils {
                     biomeBuilder.setAttribute(attribute,child.getFloat());
 //                }else if(attribute.type()==AttributeTypes.ANGLE_DEGREES){ //not needed atm
                 }else if(attribute.type()==AttributeTypes.RGB_COLOR){
-                    biomeBuilder.setAttribute(attribute,SerializationUtils.fromRgbString(child.getString()).asRGB());
+                    biomeBuilder.setAttribute(attribute,ARGB.vector3fFromRGB24(SerializationUtils.fromRgbString(child.getString()).asRGB()));
                 }else if(attribute.type()==AttributeTypes.ARGB_COLOR){
-                    biomeBuilder.setAttribute(attribute,SerializationUtils.fromArgbString(child.getString()).asARGB());
+                    biomeBuilder.setAttribute(attribute,ARGB.vector4fFromARGB32(SerializationUtils.fromArgbString(child.getString()).asARGB()));
                 }else if(attribute.type()==AttributeTypes.MOON_PHASE){
                     biomeBuilder.setAttribute(attribute,MoonPhase.valueOf(child.getString().toUpperCase()));
 //                }else if(attribute.type()==AttributeTypes.ACTIVITY){ //not needed
@@ -246,7 +247,7 @@ public class SerializationUtils {
                     if(child.getString().equalsIgnoreCase("CAN_SLEEP_WHEN_DARK")){
                         biomeBuilder.setAttribute(attribute,BedRule.CAN_SLEEP_WHEN_DARK);
                     }else if(child.getString().equalsIgnoreCase("EXPLODES")){
-                        biomeBuilder.setAttribute(attribute,BedRule.EXPLODES);
+                        biomeBuilder.setAttribute(attribute,BedRule.DESTROY_ON_USE);
                     }else{
                         throw new RuntimeException("Value "+child.getString()+" is not one of \"CAN_SLEEP_WHEN_DARK\" or \"EXPLODES\"");
                     }
